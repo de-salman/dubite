@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: dubite-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: dubite_user
+      POSTGRES_PASSWORD: dubite_pass
+      POSTGRES_DB: dubite
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: dubite-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
