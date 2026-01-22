@@ -16,6 +16,47 @@ import {
       private prisma: PrismaService,
       private statsService: StatsService,
     ) {}
+
+    async findFeatured() {
+      const reviews = await this.prisma.review.findMany({
+        where: {
+          featured: true,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatar_url: true,
+            },
+          },
+          dish: {
+            include: {
+              restaurant: {
+                include: {
+                  city: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+              category: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+        take: 6, // Get top 6 featured reviews
+      });
+
+      return reviews;
+    }
   
     async create(userId: string, dto: CreateReviewDto) {
       try {
@@ -52,6 +93,7 @@ import {
             dish_id: dto.dish_id,
             rating: dto.rating,
             comment: dto.comment,
+            featured: dto.featured || false, // Default to false, only admins can set to true
           },
           include: {
             user: {
@@ -129,6 +171,7 @@ import {
         const updateData: any = {};
         if (dto.rating !== undefined) updateData.rating = dto.rating;
         if (dto.comment !== undefined) updateData.comment = dto.comment;
+        if (dto.featured !== undefined) updateData.featured = dto.featured;
   
         // Update review
         const review = await this.prisma.review.update({

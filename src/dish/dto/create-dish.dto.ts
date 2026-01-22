@@ -8,11 +8,11 @@ export class CreateDishDto {
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  category_id: string;
 
   @IsString()
   @IsNotEmpty()
-  category: string;
+  name: string;
 
   @IsString()
   @IsOptional()

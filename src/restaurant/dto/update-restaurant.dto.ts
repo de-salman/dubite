@@ -16,7 +16,7 @@ export class UpdateRestaurantDto {
 
   @IsString()
   @IsOptional()
-  cuisine_type?: string;
+  cuisine_id?: string;
 
   @IsString()
   @IsOptional()

@@ -1,4 +1,4 @@
-import { IsInt, Min, Max, IsOptional, IsString } from 'class-validator';
+import { IsInt, Min, Max, IsOptional, IsString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateReviewDto {
@@ -12,4 +12,8 @@ export class UpdateReviewDto {
   @IsString()
   @IsOptional()
   comment?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  featured?: boolean;
 }

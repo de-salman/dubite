@@ -8,7 +8,7 @@ export class UpdateDishDto {
 
   @IsString()
   @IsOptional()
-  category?: string;
+  category_id?: string;
 
   @IsString()
   @IsOptional()

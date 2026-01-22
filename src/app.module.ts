@@ -6,8 +6,10 @@ import { DishModule } from './dish/dish.module';
 import { CitiesModule } from './cities/cities.module';
 import { ReviewModule } from './review/review.module';
 import { StatsModule } from './stats/stats.module';
+import { CategoryModule } from './category/category.module';
+import { CuisineModule } from './cuisine/cuisine.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RestaurantModule, DishModule, CitiesModule, ReviewModule, StatsModule]
+  imports: [AuthModule, PrismaModule, RestaurantModule, DishModule, CitiesModule, ReviewModule, StatsModule, CategoryModule, CuisineModule]
 })
 export class AppModule {}

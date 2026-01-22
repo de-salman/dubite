@@ -15,4 +15,8 @@ export class CreateReviewDto {
   @IsString()
   @IsOptional()
   comment?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  featured?: boolean;
 }

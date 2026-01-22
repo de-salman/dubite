@@ -7,17 +7,24 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from 'src/auth/roles.enum';
 import { UpdateDishDto } from './dto/update-dish.dto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('dishes')
 export class DishController {
   constructor(private readonly dishService: DishService) {}
 
+  // Public endpoint - no auth required
+  @Get('slug/:slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.dishService.findBySlug(slug);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Post()
   create(@Body() dto: CreateDishDto) {
     return this.dishService.create(dto);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Get()
   findAll(@Query('restaurantId') restaurantId?: string) {
@@ -28,12 +35,14 @@ export class DishController {
     return [];
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDishDto) {
     return this.dishService.update(id, dto);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {

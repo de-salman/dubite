@@ -35,21 +35,41 @@ model City {
   image_url  String?
   users      User[]
   restaurants Restaurant[]
+  dishes     Dish[]
+}
+
+model Category {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  image_url  String?
+  created_at DateTime @default(now())
+  dishes     Dish[]
+}
+
+model Cuisine {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  image_url    String?
+  created_at   DateTime     @default(now())
+  restaurants  Restaurant[]
 }
 
 model Restaurant {
   id           String           @id @default(cuid())
   city_id      String
+  cuisine_id   String
   name         String
   slug         String           @unique
   description  String?
   tags         Json?
-  cuisine_type String
   latitude     Float
   longitude    Float
   image_url    String?
   created_at   DateTime         @default(now())
   city         City             @relation(fields: [city_id], references: [id])
+  cuisine      Cuisine          @relation(fields: [cuisine_id], references: [id])
   dishes       Dish[]
   stats        RestaurantStats?
 }
@@ -57,9 +77,10 @@ model Restaurant {
 model Dish {
   id           String      @id @default(cuid())
   restaurant_id String
+  category_id   String
+  city_id       String      // Denormalized for performance (derived from restaurant.city_id)
   name         String
   slug         String      @unique
-  category     String
   description  String?
   price        Float
   tags         Json?
@@ -67,6 +88,8 @@ model Dish {
   is_active    Boolean     @default(true)
   created_at   DateTime    @default(now())
   restaurant   Restaurant  @relation(fields: [restaurant_id], references: [id])
+  category     Category    @relation(fields: [category_id], references: [id])
+  city         City        @relation(fields: [city_id], references: [id])
   reviews      Review[]
   stats        DishStats?
 }
@@ -77,6 +100,7 @@ model Review {
   dish_id   String
   rating    Int
   comment   String?
+  featured  Boolean  @default(false)
   created_at DateTime @default(now())
 
   user      User     @relation(fields: [user_id], references: [id])

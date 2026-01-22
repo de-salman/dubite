@@ -20,6 +20,7 @@ export class CitiesService {
       },
       include: {
         city: true,
+        cuisine: true,
         stats: true,
         _count: {
           select: {
@@ -33,7 +34,7 @@ export class CitiesService {
     });
 
     // Sort by stats.score if available, otherwise by created_at
-    return restaurants.sort((a, b) => {
+    const sortedRestaurants = restaurants.sort((a, b) => {
       const scoreA = a.stats?.score ?? 0;
       const scoreB = b.stats?.score ?? 0;
       if (scoreA !== scoreB) {
@@ -41,6 +42,8 @@ export class CitiesService {
       }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
+
+    return sortedRestaurants;
   }
 
   async getDishesByCitySlugAndCategory(citySlug: string, category?: string) {
@@ -52,28 +55,26 @@ export class CitiesService {
       throw new NotFoundException('City not found');
     }
 
-    // Get all restaurants in the city
-    const restaurants = await this.prisma.restaurant.findMany({
-      where: {
-        city_id: city.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const restaurantIds = restaurants.map((r) => r.id);
-
-    // Build where clause
+    // Build where clause - now using city_id directly (much faster!)
     const where: any = {
-      restaurant_id: {
-        in: restaurantIds,
-      },
+      city_id: city.id, // Direct filter on city_id - no need for restaurant subquery!
       is_active: true,
     };
 
     if (category) {
-      where.category = category;
+      // Find category by slug or name
+      const categoryRecord = await this.prisma.category.findFirst({
+        where: {
+          OR: [
+            { slug: category.toLowerCase() },
+            { name: { equals: category, mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (categoryRecord) {
+        where.category_id = categoryRecord.id;
+      }
     }
 
     const dishes = await this.prisma.dish.findMany({
@@ -84,10 +85,11 @@ export class CitiesService {
             id: true,
             name: true,
             slug: true,
-            cuisine_type: true,
+            cuisine: true,
             city: true,
           },
         },
+        category: true,
         stats: true,
       },
       orderBy: {
@@ -120,20 +122,36 @@ export class CitiesService {
       throw new NotFoundException('City not found');
     }
 
-    // Get restaurants with this cuisine type in the city
+    // Find cuisine by slug or name
+    const cuisine = await this.prisma.cuisine.findFirst({
+      where: {
+        OR: [
+          { slug: cuisineType.toLowerCase() },
+          { name: { equals: cuisineType, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!cuisine) {
+      throw new NotFoundException('Cuisine not found');
+    }
+
+    // Get restaurants with this cuisine in the city
     const restaurants = await this.prisma.restaurant.findMany({
       where: {
         city_id: city.id,
-        cuisine_type: cuisineType,
+        cuisine_id: cuisine.id,
       },
       include: {
         city: true,
+        cuisine: true,
         stats: true,
         dishes: {
           where: {
             is_active: true,
           },
           include: {
+            category: true,
             stats: true,
           },
         },
@@ -171,7 +189,11 @@ export class CitiesService {
     const restaurantCount = sortedRestaurants.length;
 
     return {
-      cuisine_type: cuisineType,
+      cuisine: {
+        id: cuisine.id,
+        name: cuisine.name,
+        slug: cuisine.slug,
+      },
       city: {
         id: city.id,
         name: city.name,
@@ -184,5 +206,168 @@ export class CitiesService {
       },
       restaurants: sortedRestaurants,
     };
+  }
+
+  async getCategories(citySlug: string) {
+    // Find city
+    const city = await this.prisma.city.findUnique({
+      where: { slug: citySlug },
+      select: { id: true },
+    });
+
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+
+    // Get dishes with categories - ordered by newest first
+    // Now we can filter directly by city_id (much simpler!)
+    const dishes = await this.prisma.dish.findMany({
+      where: {
+        city_id: city.id,
+        is_active: true,
+        image_url: { not: null },
+      },
+      select: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            image_url: true,
+          },
+        },
+        image_url: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    // Get unique categories (first occurrence = newest dish image)
+    const categoryMap = new Map<string, { id: string; name: string; image: string }>();
+    
+    for (const dish of dishes) {
+      if (dish.category && !categoryMap.has(dish.category.id)) {
+        categoryMap.set(dish.category.id, {
+          id: dish.category.id,
+          name: dish.category.name,
+          image: dish.category.image_url || dish.image_url || '',
+        });
+      }
+    }
+
+    return Array.from(categoryMap.values());
+  }
+
+  async getCuisines(citySlug: string) {
+    const city = await this.prisma.city.findUnique({
+      where: { slug: citySlug },
+      select: { id: true },
+    });
+
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+
+    // Get all unique cuisines that have restaurants in this city
+    const restaurants = await this.prisma.restaurant.findMany({
+      where: {
+        city_id: city.id,
+      },
+      select: {
+        cuisine: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            image_url: true,
+          },
+        },
+        image_url: true,
+      },
+    });
+
+    // Get unique cuisines (first occurrence = first restaurant image)
+    const cuisineMap = new Map<string, { id: string; name: string; slug: string; image: string }>();
+    
+    for (const restaurant of restaurants) {
+      if (restaurant.cuisine && !cuisineMap.has(restaurant.cuisine.id)) {
+        cuisineMap.set(restaurant.cuisine.id, {
+          id: restaurant.cuisine.id,
+          name: restaurant.cuisine.name,
+          slug: restaurant.cuisine.slug,
+          image: restaurant.cuisine.image_url || restaurant.image_url || '',
+        });
+      }
+    }
+
+    return Array.from(cuisineMap.values());
+  }
+
+  async getBestDishes(citySlug: string) {
+    const city = await this.prisma.city.findUnique({
+      where: { slug: citySlug },
+      select: { id: true },
+    });
+
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+
+    // Get all active dishes in the city with stats
+    const dishes = await this.prisma.dish.findMany({
+      where: {
+        city_id: city.id,
+        is_active: true,
+      },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            cuisine: true,
+            city: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        stats: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    // Sort by stats.score (best first), then by avg_rating, then by created_at
+    const sortedDishes = dishes.sort((a, b) => {
+      const scoreA = a.stats?.score ?? 0;
+      const scoreB = b.stats?.score ?? 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Descending by score
+      }
+      const ratingA = a.stats?.avg_rating ?? 0;
+      const ratingB = b.stats?.avg_rating ?? 0;
+      if (ratingA !== ratingB) {
+        return ratingB - ratingA; // Descending by rating
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    // Add ranking number to each dish
+    return sortedDishes.map((dish, index) => ({
+      ...dish,
+      rank: index + 1, // #1, #2, #3, etc.
+    }));
   }
 }

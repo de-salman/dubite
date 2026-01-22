@@ -10,16 +10,29 @@ export class RestaurantService {
 
   async create(dto: CreateRestaurantDto) {
     try {
+      // Check if cuisine exists
+      const cuisine = await this.prisma.cuisine.findUnique({
+        where: { id: dto.cuisine_id },
+      });
+
+      if (!cuisine) {
+        throw new NotFoundException('Cuisine not found');
+      }
+
       const restaurant = await this.prisma.restaurant.create({
         data: {
           name: dto.name,
           description: dto.description,
           tags: dto.tags,
-          cuisine_type: dto.cuisine_type,
           latitude: dto.latitude,
           longitude: dto.longitude,
           slug: dto.name.toLowerCase().replace(/\s+/g, '-'),
           city: { connect: { id: dto.city_id } },
+          cuisine: { connect: { id: dto.cuisine_id } },
+        },
+        include: {
+          cuisine: true,
+          city: true,
         },
       });
   
@@ -44,11 +57,102 @@ export class RestaurantService {
     return this.prisma.restaurant.findMany({
       include: {
         city: true,
+        cuisine: true,
       },
       orderBy: {
         created_at: 'desc',
       },
     });
+  }
+
+  async findBySlug(slug: string) {
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    return restaurant;
+  }
+
+  async findDetailBySlug(slug: string) {
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { slug },
+      include: {
+        city: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        cuisine: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        stats: true,
+        dishes: {
+          where: {
+            is_active: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            image_url: true,
+            description: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            stats: true,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          take: 10, // Get top 10 dishes for signature dishes
+        },
+        _count: {
+          select: {
+            dishes: true,
+          },
+        },
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    // Sort dishes by score/rating for signature dishes
+    const sortedDishes = restaurant.dishes.sort((a, b) => {
+      const scoreA = a.stats?.score ?? 0;
+      const scoreB = b.stats?.score ?? 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      const ratingA = a.stats?.avg_rating ?? 0;
+      const ratingB = b.stats?.avg_rating ?? 0;
+      return ratingB - ratingA;
+    });
+
+    return {
+      ...restaurant,
+      dishes: sortedDishes,
+    };
   }
 
   async update(id: string, dto: UpdateRestaurantDto) {
@@ -62,16 +166,37 @@ export class RestaurantService {
       }
       if (dto.description !== undefined) updateData.description = dto.description;
       if (dto.tags !== undefined) updateData.tags = dto.tags;
-      if (dto.cuisine_type !== undefined) updateData.cuisine_type = dto.cuisine_type;
       if (dto.latitude !== undefined) updateData.latitude = dto.latitude;
       if (dto.longitude !== undefined) updateData.longitude = dto.longitude;
       if (dto.city_id !== undefined) {
         updateData.city = { connect: { id: dto.city_id } };
+        // Cascade city_id update to all dishes when restaurant city changes
+        // This maintains data consistency for the denormalized city_id field
+        await this.prisma.dish.updateMany({
+          where: { restaurant_id: id },
+          data: { city_id: dto.city_id },
+        });
+      }
+      if (dto.cuisine_id !== undefined) {
+        // Check if cuisine exists
+        const cuisine = await this.prisma.cuisine.findUnique({
+          where: { id: dto.cuisine_id },
+        });
+
+        if (!cuisine) {
+          throw new NotFoundException('Cuisine not found');
+        }
+
+        updateData.cuisine = { connect: { id: dto.cuisine_id } };
       }
 
       const restaurant = await this.prisma.restaurant.update({
         where: { id },
         data: updateData,
+        include: {
+          cuisine: true,
+          city: true,
+        },
       });
 
       return restaurant;

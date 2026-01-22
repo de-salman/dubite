@@ -14,9 +14,11 @@ export class CreateRestaurantDto {
   tags?: string[];
 
   @IsString()
-  cuisine_type: string;
+  @IsNotEmpty()
+  cuisine_id: string;
 
   @IsString()
+  @IsNotEmpty()
   city_id: string;
 
 

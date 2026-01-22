@@ -32,4 +32,19 @@ export class CitiesController {
   ) {
     return this.citiesService.getCuisineRanking(slug, type);
   }
+
+  @Get(':slug/categories')
+  getCategories(@Param('slug') slug: string) {
+    return this.citiesService.getCategories(slug);
+  }
+
+  @Get(':slug/cuisines')
+  getCuisines(@Param('slug') slug: string) {
+    return this.citiesService.getCuisines(slug);
+  }
+
+  @Get(':slug/best-dishes')
+  getBestDishes(@Param('slug') slug: string) {
+    return this.citiesService.getBestDishes(slug);
+  }
 }

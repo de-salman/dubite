@@ -7,6 +7,7 @@ import {
     UseGuards,
     Request,
     Delete,
+    Get,
   } from '@nestjs/common';
   import { ReviewService } from './review.service';
   import { CreateReviewDto } from './dto/create-review.dto';
@@ -16,11 +17,17 @@ import {
   import { Roles } from 'src/auth/decorators/roles.decorator';
   import { Role } from 'src/auth/roles.enum';
   
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Controller('reviews')
   export class ReviewController {
     constructor(private readonly reviewService: ReviewService) {}
   
+    // Public endpoint - no auth required
+    @Get('featured')
+    getFeatured() {
+      return this.reviewService.findFeatured();
+    }
+  
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.USER)
     @Post()
     create(@Request() req, @Body() dto: CreateReviewDto) {
@@ -28,6 +35,7 @@ import {
       return this.reviewService.create(userId, dto);
     }
   
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.USER)
     @Patch(':id')
     update(
@@ -39,6 +47,7 @@ import {
       return this.reviewService.update(userId, id, dto);
     }
 
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.USER)
     @Delete(':id')
     remove(@Request() req, @Param('id') id: string) {
